@@ -209,17 +209,34 @@ tests/          pytest suite
 data/           SQLite database (git-ignored)
 ```
 
-## Screenshots / demo
 
-No screenshots are committed yet; see [docs/images/README.md](docs/images/README.md) for the list to capture
-(architecture, Gmail lesson, Gmail feedback, n8n workflow, API docs).
+## Screenshots / Demo
 
-<!-- Uncomment once the files exist:
-![Gmail lesson](docs/images/gmail-lesson.png)
-![Gmail feedback](docs/images/gmail-feedback.png)
-![n8n workflow](docs/images/n8n-workflow.png)
-![API docs](docs/images/api-docs.png)
--->
+### Architecture
+
+![PyTutorFlow Architecture](screenshots/architecture.png)
+
+### Gmail Lesson
+
+![Gmail Lesson](screenshots/gmail-lesson.png)
+
+### Gmail Feedback
+
+![Gmail Feedback](screenshots/gmail-feedback.png)
+
+### n8n Workflow
+
+![n8n Workflow](screenshots/n8n-workflow_1.png)
+
+### n8n Error Handler
+
+![n8n Error Handler](screenshots/n8n-workflow_2.png)
+
+### FastAPI Documentation
+
+![FastAPI Documentation](screenshots/api-docs.png)
+
+Verified by hand with a real Gmail account: a student received "What is programming?", replied by email, got automatic feedback, and was moved to "What is Python?".
 
 Verified by hand with a real Gmail account: a student received "What is programming?", replied by email, got automatic feedback, and was moved to "What is Python?".
 
