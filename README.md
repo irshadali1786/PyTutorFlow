@@ -101,7 +101,7 @@ Python 3.10+ (3.12 recommended) | FastAPI + Uvicorn | SQLite (built-in `sqlite3`
 Documented and used on macOS; Linux should work the same way; Windows is untested. Needs Python 3.10+ and Node.js (for n8n).
 
 ```bash
-git clone <your-repo-url> && cd <repo-folder>
+git clone https://github.com/Irshadali1786/PyTutorFlow.git && cd PyTutorFlow
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env            # fill in the values below
