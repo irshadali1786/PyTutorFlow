@@ -269,7 +269,7 @@ MIT License
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/Irshadali1786/ML_Visualizer.git
+git clone https://github.com/Irshadali1786/PyTutorFlow.git
 cd ML_Visualizer
 
 
