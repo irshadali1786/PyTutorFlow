@@ -1,0 +1,1144 @@
+{
+  "name": "Learning System - MAIN (Gmail: inbox polling + daily lessons)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "b067fe4f-0e2e-5c3d-a30d-20bd534907ed",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1100
+      ],
+      "notes": "Polling every 5 minutes is what gives catch-up: GET /daily/due returns every student whose send time has passed today and who has not been served today, so a late start (Mac was off) is served on the first tick after n8n is back."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8000/daily/due",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "5caf74bc-50e8-5931-9c47-3f73fec2c228",
+      "name": "GET /daily/due",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        1100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "FastAPI X-API-Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "students",
+        "options": {}
+      },
+      "id": "8fcde70f-fc0e-5c87-be41-14575f7bb736",
+      "name": "Split Out students",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        440,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://127.0.0.1:8000/students/' + encodeURIComponent($json.student_id) + '/daily-message' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "32a57b3b-a7d8-5c1a-949e-4cc1e9ceb3b2",
+      "name": "POST /students/{id}/daily-message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        1100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "FastAPI X-API-Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput",
+      "notes": "Read-only on the FastAPI side (it only builds the text), so retrying is safe. Delivery is recorded later by daily-result."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// POST daily-message failed for one or more students. The other students are unaffected.\n// Recover which student each error belongs to through n8n's item pairing.\nconst src = $('Split Out students').all();\nconst out = [];\n$input.all().forEach((it, i) => {\n  const idx = (it.pairedItem && typeof it.pairedItem.item === 'number') ? it.pairedItem.item : i;\n  const s = (src[idx] && src[idx].json) || {};\n  const raw = (it.json && it.json.error !== undefined) ? it.json.error : it.json;\n  const msg = (typeof raw === 'string') ? raw : ((raw && raw.message) ? raw.message : JSON.stringify(raw));\n  const sid = (s.student_id !== undefined) ? s.student_id : null;\n  if (sid === null) return;            // cannot attribute to a student -> nothing to record\n  out.push({ json: { action: 'error', student_id: sid,\n                     email: (s.email !== undefined) ? s.email : null,\n                     delivered: false, error: ('daily-message failed: ' + String(msg)).slice(0, 300) } });\n});\nreturn out;"
+      },
+      "id": "b02d74a3-0ae6-5b5b-81f5-4dffe7cf0b35",
+      "name": "Prepare error item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "19c63e37-21f2-500c-9812-cd583439d779",
+              "leftValue": "={{ $json.route }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "student"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ca993d68-f2bc-52b0-a9e9-f261ed68efaa",
+      "name": "Student message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3064e46a-9a88-532b-96f8-92733e3760c8",
+              "leftValue": "={{ $json.route }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "admin"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "24d16537-4ff8-5fa1-90ae-82acf0bb934a",
+      "name": "Admin message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        1220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Runs once after ALL student Gmail sends. Folds the outcomes into ONE daily-result item per student.\n// Sends are sequential and one-output-per-input, so output i belongs to the i-th student item of\n// 'Prepare Gmail messages' (pairedItem is used when n8n provides it).\nconst plan = $('Prepare Gmail messages').all().map((i) => i.json).filter((j) => j.route === 'student');\nconst outs = $input.all();\nconst result = [];\nouts.forEach((o, i) => {\n  const idx = (o.pairedItem && typeof o.pairedItem.item === 'number') ? o.pairedItem.item : i;\n  const p = plan[idx];\n  if (!p || p.student_id === null || p.student_id === undefined) return;\n  const j = o.json || {};\n  const failed = (j.error !== undefined && j.error !== null && j.error !== false);\n  let error = null;\n  if (failed) {\n    const raw = j.error;\n    const m = (typeof raw === 'string') ? raw : ((raw && raw.message) ? raw.message : JSON.stringify(raw));\n    error = ('gmail send failed: ' + m).slice(0, 300);\n  }\n  result.push({ json: { student_id: p.student_id, delivered: !failed, error } });\n});\nreturn result;"
+      },
+      "id": "a35c0d2a-5cf0-51bf-a7a0-db43112893d6",
+      "name": "Build delivery results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        940
+      ],
+      "notes": "delivered=true only if the Gmail send for that student's email succeeded; otherwise delivered=false with the error."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Students for whom there was nothing deliverable (no email / no body / unexpected kind).\n// Recorded as a failed attempt so the API's own retry limit and admin alert apply instead of silently looping forever.\nconst out = [];\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  if (j.route !== 'skip' || j.student_id === null || j.student_id === undefined) continue;\n  out.push({ json: { student_id: j.student_id, delivered: false, error: ('not delivered: ' + String(j.reason)).slice(0, 300) } });\n}\nreturn out;"
+      },
+      "id": "67fcb8da-75ce-54ea-8295-a0b0ac903fa4",
+      "name": "Build skip results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://127.0.0.1:8000/students/' + encodeURIComponent($json.student_id) + '/daily-result' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ delivered: $json.delivered === true, error: $json.error || null }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "203aec5e-b9c9-532f-a260-9b812af68a4b",
+      "name": "POST /students/{id}/daily-result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        1180
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "FastAPI X-API-Key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput",
+      "notes": "Contract: body {delivered: bool, error: string|null}; response {ok, admin_alert}. Success, delivery failure, skip and daily-message failure all converge here (one item per student). continueRegularOutput keeps one student's recording failure from stopping the others."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Response of daily-result: {ok, admin_alert}. FastAPI sets admin_alert when a student reaches the max failures for today.\nconst admin = String($env.ADMIN_EMAIL || '').trim();\nif (!admin) return [];\nconst out = [];\nlet recordFailures = 0, firstErr = null;\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  if (j.error !== undefined && j.error !== null) {\n    recordFailures += 1;\n    if (firstErr === null) firstErr = (typeof j.error === 'string') ? j.error : ((j.error && j.error.message) ? j.error.message : JSON.stringify(j.error));\n  } else if (j.admin_alert) {\n    out.push({ json: { to: admin, subject: '[Tutor] Daily lesson alert', body: String(j.admin_alert).slice(0, 3500) } });\n  }\n}\nif (recordFailures > 0) {\n  out.push({ json: { to: admin, subject: '[Tutor] daily-result could not be recorded',\n    body: 'daily-result could not be recorded for ' + recordFailures + ' student(s).\\nerror: ' + String(firstErr).slice(0, 300) +\n          '\\nThose students may receive today\\'s message again.' } });\n}\nreturn out;"
+      },
+      "id": "3c246db0-2472-56e1-9056-868082cbf95f",
+      "name": "Build admin alerts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        1180
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "labelIds": [
+            "INBOX"
+          ],
+          "readStatus": "both"
+        },
+        "options": {
+          "downloadAttachments": false
+        }
+      },
+      "id": "10473813-e552-5893-8f5d-7f42b984fc01",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account (learning system)"
+        }
+      },
+      "notes": "n8n Gmail polling: checks the inbox every minute. Simplify is OFF so the full plain-text body is available. Gmail OAuth2 credential (no password)."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// One item per incoming Gmail message (full format: parsed headers + text body).\nconst out = [];\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  let sender = '';\n  if (j.from && Array.isArray(j.from.value) && j.from.value[0]) sender = j.from.value[0].address || '';\n  if (!sender) { const f = j.From || j.from || j.sender; sender = (typeof f === 'string') ? f : ((f && f.text) ? f.text : ''); }\n  const body = (typeof j.text === 'string' && j.text.trim()) ? j.text : ((typeof j.snippet === 'string') ? j.snippet : '');\n  out.push({ json: {\n    sender: String(sender),\n    message_id: String(j.messageId || j.id || '').trim(),   // RFC Message-ID, else Gmail id: used by FastAPI for de-duplication\n    gmail_id: j.id || null,                                  // Gmail id: needed to reply in the same thread\n    thread_id: j.threadId || null,\n    subject: String(j.subject || j.Subject || ''),\n    body,\n  } });\n}\nreturn out;"
+      },
+      "id": "8891ec9f-bcd2-5ad6-b2ad-948fccece824",
+      "name": "Extract email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "Normalises the Gmail item. Handles both the parsed (from.value[0].address) and header-string shapes."
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "26b6448e-942f-58b2-977d-244658598b7d",
+      "name": "Loop Over Emails",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/email/incoming",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sender: $json.sender, message_id: $json.message_id, subject: $json.subject, body: $json.body }) }}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "2efc613f-6f38-5146-bb73-82cd93898e8f",
+      "name": "POST /email/incoming",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        380
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "FastAPI X-API-Key"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "No retry on purpose: FastAPI records the Message-ID before grading, so a retry could only be answered DUPLICATE."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// FastAPI /email/incoming answer -> ready-to-send Gmail items (plain text, no HTML).\nconst r = $input.first().json || {};\nlet src = {};\ntry { src = $('Loop Over Emails').first().json || {}; } catch (e) {}\nconst KNOWN = ['PASS', 'RETRY', 'WEAK', 'MASTERED', 'LESSON_DONE', 'FINISHED', 'COMMAND', 'BAD_INPUT', 'UNKNOWN_USER', 'ERROR', 'DUPLICATE', 'IGNORED'];\nconst admin = String($env.ADMIN_EMAIL || '').trim();\nconst out = [];\n\n// DUPLICATE / IGNORED come back with send=false: nothing is emailed.\nif (r.send === true && r.to && r.body && src.gmail_id) {\n  out.push({ json: { kind: 'reply', gmail_id: src.gmail_id, to: r.to, subject: r.subject, body: String(r.body).slice(0, 20000), outcome: r.outcome } });\n}\nlet alert = r.admin_alert;\nif (!KNOWN.includes(r.outcome)) alert = 'Unexpected outcome from FastAPI: ' + String(r.outcome) + (alert ? ' | ' + alert : '');\nif (alert && admin) {\n  out.push({ json: { kind: 'alert', to: admin, subject: '[Tutor] ' + String(r.outcome || 'alert'), body: String(alert).slice(0, 3500), outcome: r.outcome } });\n}\nif (out.length === 0) out.push({ json: { kind: 'none', outcome: r.outcome } });\nreturn out;"
+      },
+      "id": "e2141a87-414a-5081-8500-72ca796a0dc9",
+      "name": "Prepare reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b8917813-1ebe-54be-b54e-5346d2f59ae9",
+              "leftValue": "={{ $json.kind }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              },
+              "rightValue": "none"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a969dcec-8ea2-5d33-bdc8-608ff635d0e7",
+      "name": "Anything to send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6bb4874c-d771-51f3-b1c7-4bd19e80f229",
+              "leftValue": "={{ $json.kind }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "reply"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "248f6505-929e-5423-ac7e-4e122c3e07fb",
+      "name": "Is student reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "reply",
+        "messageId": "={{ $json.gmail_id }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ecb1c96f-70f6-5378-ac8a-c8ca87220f3b",
+      "name": "Reply to student (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        240
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account (learning system)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Replies inside the student's own thread (Gmail threads it automatically). Gmail OAuth2 credential."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "9789c459-bf96-597d-af44-209a798c6e70",
+      "name": "Send admin alert (Gmail, incoming)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        400
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account (learning system)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Runs once per email after all sends. Emits ONE item: failed or not.\nconst items = $input.all();\nconst failed = items.filter((i) => i.json && i.json.error);\nconst admin = String($env.ADMIN_EMAIL || '').trim();\nif (failed.length === 0 || !admin) return [{ json: { failed: false } }];\nlet who = '?', subj = '';\ntry { const s = $('Loop Over Emails').first().json; who = s.sender; subj = s.subject; } catch (e) {}\nconst raw = failed[0].json.error;\nconst msg = (typeof raw === 'string') ? raw : ((raw && raw.message) ? raw.message : JSON.stringify(raw));\nconst body = 'Gmail could not send a reply.\\n' +\n  'student email: ' + who + '\\nsubject: ' + subj + '\\n' +\n  'failed sends: ' + failed.length + ' of ' + items.length + '\\n' +\n  'error: ' + String(msg).slice(0, 300) + '\\n' +\n  'The email was already recorded, so the student may need to write again.';\nreturn [{ json: { failed: true, to: admin, subject: '[Tutor] Gmail delivery failed', body } }];"
+      },
+      "id": "021993a9-c524-5126-bb61-aca7f9e3c9f7",
+      "name": "Check delivery",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "46d08abd-5e41-5c2c-999b-ac42fb97926b",
+              "leftValue": "={{ $json.failed }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "23315ce2-a58a-5944-9613-0b277172fae2",
+      "name": "Delivery failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "299e2a23-7416-5343-bf53-9336fd5b664b",
+      "name": "Alert: delivery failure (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        240
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account (learning system)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "64b09ea4-14ff-5fae-9b0e-95024718bb56",
+      "name": "Next email",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// POST /email/incoming failed (FastAPI down?). Gmail's trigger will NOT hand this email over again,\n// so the alert names the sender; that student must write again once FastAPI is back.\nconst admin = String($env.ADMIN_EMAIL || '').trim();\nif (!admin) return [{ json: { send: false } }];\nconst store = $getWorkflowStaticData('global');            // at most one such alert per 10 minutes\nconst now = Date.now();\nif (store.lastApiFailAlert && now - store.lastApiFailAlert < 10 * 60 * 1000) return [{ json: { send: false } }];\nstore.lastApiFailAlert = now;\nlet who = '?', subj = '';\ntry { const s = $('Loop Over Emails').first().json; who = s.sender; subj = s.subject; } catch (e) {}\nconst j = $input.first().json || {};\nconst raw = (j.error !== undefined) ? j.error : j;\nconst msg = (typeof raw === 'string') ? raw : ((raw && raw.message) ? raw.message : JSON.stringify(raw));\nconst body = 'The request to FastAPI /email/incoming failed.\\n' +\n  'from: ' + who + '\\nsubject: ' + subj + '\\n' +\n  'error: ' + String(msg).slice(0, 300) + '\\n' +\n  'This email was not graded. Check that FastAPI is running (python -m app serve) and ask the student to write again.';\nreturn [{ json: { send: true, to: admin, subject: '[Tutor] FastAPI request failed', body } }];"
+      },
+      "id": "44542430-c3b6-533f-aff1-2e397a3f9077",
+      "name": "Build FastAPI-failure alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6199d8e0-7f56-54eb-8583-ee277789cb5a",
+              "leftValue": "={{ $json.send }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1e83ac1-db90-5d7d-8b47-e8c0df716c51",
+      "name": "Alert needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f1ff8c39-b403-5e61-a100-77ee20c590f4",
+      "name": "Alert: FastAPI failure (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        540
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account (learning system)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// One FastAPI daily-message response per student -> ONE ready-to-send Gmail item (NOT sent yet).\n// Output item shapes (every item carries student_id so later steps can report per student):\n//   { route:'student', action:'send', student_id, kind, to, subject, body }\n//   { route:'admin',   action:'send', student_id, kind:'ADMIN_ALERT', to, subject, body }\n//   { route:'skip',    action:'skip', student_id, kind, reason }\nconst admin = String($env.ADMIN_EMAIL || '').trim();\nconst out = [];\nfor (const it of $input.all()) {\n  const r = it.json || {};\n  const sid = (r.student_id !== undefined) ? r.student_id : null;\n  const kind = (typeof r.kind === 'string') ? r.kind : null;\n  let reason = null;\n  if (kind === 'NONE') reason = 'nothing to send (no current lesson or student has no email address)';\n  else if (kind !== 'LESSON' && kind !== 'REMINDER') reason = 'unexpected kind: ' + String(kind);\n  else if (!r.email) reason = 'no email address';\n  else if (!r.body || !String(r.body).trim()) reason = 'no message body';\n  if (reason) {\n    out.push({ json: { route: 'skip', action: 'skip', student_id: sid, kind, reason } });\n  } else {\n    out.push({ json: { route: 'student', action: 'send', student_id: sid, kind, to: r.email,\n                       subject: String(r.subject || 'Python lesson').slice(0, 200), body: String(r.body).slice(0, 20000) } });\n  }\n  // FastAPI may attach an admin alert (e.g. \"student has not replied for N days\").\n  if (r.admin_alert && admin) {\n    out.push({ json: { route: 'admin', action: 'send', student_id: sid, kind: 'ADMIN_ALERT', to: admin,\n                       subject: '[Tutor] Student alert', body: String(r.admin_alert).slice(0, 3500) } });\n  }\n}\nreturn out;"
+      },
+      "id": "f0722ff1-fa0e-55ed-bfb3-7006dfde79f0",
+      "name": "Prepare Gmail messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c01fd29e-bdce-54a8-8a4f-d8baa40c70ad",
+      "name": "Send student Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        940
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account (learning system)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Plain-text email via the Gmail OAuth2 credential. onError=continueRegularOutput: a failed send becomes an item with an `error` field instead of stopping the batch, so other students still get their lesson."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "0d1c8775-2d69-5d08-b853-0b4a39f2beb7",
+      "name": "Send admin Gmail (daily)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        1220
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account (learning system)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "e0267724-216f-5c72-baa3-1c37fdcfc005",
+      "name": "Send admin alert (Gmail, daily)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2220,
+        1180
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account (learning system)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "GET /daily/due",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET /daily/due": {
+      "main": [
+        [
+          {
+            "node": "Split Out students",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out students": {
+      "main": [
+        [
+          {
+            "node": "POST /students/{id}/daily-message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /students/{id}/daily-message": {
+      "main": [
+        [
+          {
+            "node": "Prepare Gmail messages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare error item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Student message?": {
+      "main": [
+        [
+          {
+            "node": "Send student Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Admin message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admin message?": {
+      "main": [
+        [
+          {
+            "node": "Send admin Gmail (daily)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build skip results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build delivery results": {
+      "main": [
+        [
+          {
+            "node": "POST /students/{id}/daily-result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build skip results": {
+      "main": [
+        [
+          {
+            "node": "POST /students/{id}/daily-result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare error item": {
+      "main": [
+        [
+          {
+            "node": "POST /students/{id}/daily-result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /students/{id}/daily-result": {
+      "main": [
+        [
+          {
+            "node": "Build admin alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build admin alerts": {
+      "main": [
+        [
+          {
+            "node": "Send admin alert (Gmail, daily)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract email": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Emails": {
+      "main": [
+        [],
+        [
+          {
+            "node": "POST /email/incoming",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /email/incoming": {
+      "main": [
+        [
+          {
+            "node": "Prepare reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build FastAPI-failure alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare reply": {
+      "main": [
+        [
+          {
+            "node": "Anything to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything to send?": {
+      "main": [
+        [
+          {
+            "node": "Is student reply?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Next email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is student reply?": {
+      "main": [
+        [
+          {
+            "node": "Reply to student (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send admin alert (Gmail, incoming)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply to student (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Check delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send admin alert (Gmail, incoming)": {
+      "main": [
+        [
+          {
+            "node": "Check delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check delivery": {
+      "main": [
+        [
+          {
+            "node": "Delivery failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delivery failed?": {
+      "main": [
+        [
+          {
+            "node": "Alert: delivery failure (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Next email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert: delivery failure (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Next email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next email": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build FastAPI-failure alert": {
+      "main": [
+        [
+          {
+            "node": "Alert needed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert needed?": {
+      "main": [
+        [
+          {
+            "node": "Alert: FastAPI failure (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Next email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert: FastAPI failure (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Next email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Gmail messages": {
+      "main": [
+        [
+          {
+            "node": "Student message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send student Gmail": {
+      "main": [
+        [
+          {
+            "node": "Build delivery results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

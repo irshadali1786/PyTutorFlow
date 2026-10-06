@@ -1,0 +1,150 @@
+{
+  "name": "Workflow C - Global error handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "8e7f1761-4e6a-5ddc-bbca-8405a69bb712",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ],
+      "notes": "Runs when a workflow that has THIS workflow selected as its 'Error Workflow' (Workflow settings) fails. Select it in MAIN's settings; do not activate it separately."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Error Trigger -> one normalized, SECRET-REDACTED record. No HTML here (escaping happens in 'Build alert message').\n// Two shapes exist:\n//   execution error: { workflow:{id,name}, execution:{id,url,mode,lastNodeExecuted,error:{message,stack}} }\n//   trigger error:   { workflow:{id,name}, trigger:{mode:'trigger', error:{message,node:{name},cause:{message}}} }\nconst SELF = 'Workflow C - Global error handler';\nconst redact = (s) => {\n  let t = String(s === undefined || s === null ? '' : s);\n  return t\n    .replace(/\\bya29\\.[A-Za-z0-9._-]+/g, '[REDACTED]')\n    .replace(/\\b1\\/\\/[A-Za-z0-9._-]{20,}/g, '[REDACTED]')\n    .replace(/\\b(bearer|basic)\\s+[A-Za-z0-9._~+\\/=-]{8,}/gi, '$1 [REDACTED]')\n    .replace(/(x-api-key|api[_-]?key|apikey|authorization|password|passwd|pwd|secret|token|encryption[_-]?key)([\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',;&}]+/gi, '$1$2[REDACTED]')\n    .replace(/([?&](?:token|key|api_key|apikey|password|secret|access_token)=)[^&\\s]+/gi, '$1[REDACTED]')\n    .replace(/\\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}/g, '[REDACTED]');\n};\nconst clip = (s, n) => { const t = String(s).replace(/\\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '\\u2026' : t; };\nconst out = [];\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  const wf = j.workflow || {};\n  const ex = j.execution || {};\n  const tr = j.trigger || {};\n  const err = ex.error || tr.error || {};\n  const isTrigger = !j.execution && !!j.trigger;\n  const rawMsg = err.message || (err.cause && err.cause.message) || (typeof err === 'string' ? err : '') || 'unknown error';\n  const nodeName = ex.lastNodeExecuted || (err.node && (err.node.name || (typeof err.node === 'string' ? err.node : ''))) || (isTrigger ? 'trigger' : 'unknown');\n  const workflowName = wf.name || 'unknown workflow';\n  if (workflowName === SELF) continue;           // never alert about this handler itself (no loops)\n  const message = clip(redact(rawMsg), 300);\n  const norm = message.toLowerCase().replace(/\\d+/g, '#').slice(0, 120);\n  out.push({ json: {\n    workflow_id: wf.id !== undefined ? String(wf.id) : '',\n    workflow_name: clip(redact(workflowName), 100),\n    node_name: clip(redact(nodeName), 100),\n    message,\n    execution_id: ex.id !== undefined ? String(ex.id) : '',\n    mode: String(ex.mode || tr.mode || ''),\n    kind: isTrigger ? 'trigger' : 'execution',\n    key: [wf.id !== undefined ? String(wf.id) : workflowName, nodeName, norm].join('|').slice(0, 250),\n  } });\n}\nreturn out;"
+      },
+      "id": "4e969c3f-fa29-5025-9bef-45fce953c3b9",
+      "name": "Extract error info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "Normalises both Error Trigger shapes, redacts secrets (Google OAuth tokens, API keys, bearer tokens, passwords), clips lengths, ignores this handler's own errors."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Storm protection, state kept in workflow static data (survives between executions).\n//  1) same error (workflow + node + message with digits normalised) at most once per COOLDOWN_MIN minutes;\n//     suppressed repeats are counted and reported on the next alert for that error.\n//  2) at most MAX_PER_WINDOW alerts per WINDOW_MIN minutes across ALL errors; the first alert over the cap\n//     is replaced by ONE \"storm\" notice, everything else in the window is dropped.\nconst COOLDOWN_MIN = 15, WINDOW_MIN = 10, MAX_PER_WINDOW = 6, MAX_KEYS = 200, KEEP_HOURS = 24;\nconst sd = $getWorkflowStaticData('global');\nconst st = sd.errorThrottle = sd.errorThrottle || { keys: {}, win: { start: 0, count: 0, notice: false } };\nconst now = Date.now();\nconst MIN = 60000;\n\n// prune old keys\nfor (const k of Object.keys(st.keys)) { if (now - st.keys[k].last > KEEP_HOURS * 60 * MIN) delete st.keys[k]; }\nconst ks = Object.keys(st.keys);\nif (ks.length > MAX_KEYS) { ks.sort((a, b) => st.keys[a].last - st.keys[b].last).slice(0, ks.length - MAX_KEYS).forEach((k) => delete st.keys[k]); }\n\nconst out = [];\nfor (const it of $input.all()) {\n  const e = it.json;\n  const prev = st.keys[e.key];\n  if (prev && now - prev.last < COOLDOWN_MIN * MIN) { prev.suppressed += 1; continue; }\n\n  if (now - st.win.start >= WINDOW_MIN * MIN) st.win = { start: now, count: 0, notice: false };\n  if (st.win.count >= MAX_PER_WINDOW) {\n    if (prev) prev.suppressed += 1; else st.keys[e.key] = { last: 0, suppressed: 1 };\n    if (!st.win.notice) {\n      st.win.notice = true;\n      out.push({ json: { storm: true, workflow_name: e.workflow_name, node_name: e.node_name, message: e.message, execution_id: e.execution_id, mode: e.mode, window_min: WINDOW_MIN, max: MAX_PER_WINDOW, suppressed_before: 0 } });\n    }\n    continue;\n  }\n  st.win.count += 1;\n  const before = prev ? prev.suppressed : 0;\n  st.keys[e.key] = { last: now, suppressed: 0 };\n  out.push({ json: Object.assign({}, e, { storm: false, suppressed_before: before }) });\n}\nreturn out;"
+      },
+      "id": "99d9b169-3c10-5334-855f-7150126fa710",
+      "name": "Throttle alerts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "notes": "Per-error cooldown (15 min) + global cap (6 alerts / 10 min, then one storm notice). State lives in workflow static data."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Throttled record -> Gmail item. Plain text (no HTML), so nothing needs escaping.\nlet admin = '';\ntry { admin = String($env.ADMIN_EMAIL || '').trim(); } catch (e) { admin = ''; }\nif (!admin) return [];                       // no admin email configured -> nothing to send\nconst s = (v) => String(v === undefined || v === null ? '' : v);\nconst out = [];\nfor (const it of $input.all()) {\n  const e = it.json;\n  let subject, body;\n  if (e.storm) {\n    subject = '[Tutor] Error storm';\n    body = 'More than ' + s(e.max) + ' errors within ' + s(e.window_min) + ' min. Further alerts are paused until the window ends.\\n' +\n      'latest: ' + s(e.workflow_name) + ' / ' + s(e.node_name) + '\\nerror: ' + s(e.message);\n  } else {\n    subject = '[Tutor] n8n error: ' + s(e.workflow_name).slice(0, 60);\n    body = 'workflow: ' + s(e.workflow_name) + '\\nnode: ' + s(e.node_name) + '\\nerror: ' + s(e.message) + '\\n' +\n      'execution: ' + s(e.execution_id || 'n/a') + (e.mode ? ' (' + s(e.mode) + ')' : '') +\n      (e.kind === 'trigger' ? '\\ntrigger/activation error (check the Gmail OAuth credential)' : '') +\n      (e.suppressed_before > 0 ? '\\n+' + s(e.suppressed_before) + ' similar suppressed since the last alert' : '');\n  }\n  out.push({ json: { to: admin, subject, body: body.slice(0, 3500) } });\n}\nreturn out;"
+      },
+      "id": "c00299a9-1a73-5059-97c3-7ce74e429c95",
+      "name": "Build alert message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ],
+      "notes": "Admin address comes from $env.ADMIN_EMAIL; if empty, nothing is sent."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "75924145-1dee-524a-886a-4fbc330cde23",
+      "name": "Send admin alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account (learning system)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Gmail OAuth2 credential (the same one MAIN uses). onError=continueRegularOutput so a failed alert cannot raise another error."
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract error info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract error info": {
+      "main": [
+        [
+          {
+            "node": "Throttle alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Throttle alerts": {
+      "main": [
+        [
+          {
+            "node": "Build alert message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build alert message": {
+      "main": [
+        [
+          {
+            "node": "Send admin alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

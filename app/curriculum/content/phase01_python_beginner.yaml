@@ -1,0 +1,314 @@
+# ---------------------------------------------------------------------------
+# PHASE 1 - beginner foundation: 5 short lessons / 10 exercises (not a complete course).
+# Structure:  phase > modules > topics > concepts > lessons > exercises
+# Lessons unlock in file order unless a lesson lists  requires: [lesson-id, ...]
+# Exercise kinds:
+#   quiz : student sends a letter (a / b / c).   test_cases: [{match: choice, accepted: [...]}]
+#   code : student sends Python code.            test_cases: [{stdin, expected_output, match}]
+#          match = exact | non_empty | contains
+# passing_criteria:
+#   min_score: 100                (percent of test cases that must pass)
+#   required_calls: {print: 2}    (function must be called at least N times)
+# ---------------------------------------------------------------------------
+phase:
+  id: phase-01
+  title: "Python Absolute Beginner"
+  description: "Start from zero. No experience needed."
+  modules:
+    - id: p1-m1
+      title: "Getting Started"
+      topics:
+        - id: p1-m1-t1
+          title: "What are programming and Python?"
+          concepts:
+            - id: what-is-programming
+              title: "What is programming?"
+              lessons:
+                - id: prog-01
+                  title: "What is programming?"
+                  content: |
+                    A computer is very fast, but it cannot think.
+                    It only does exactly what it is told.
+
+                    Programming means writing instructions for a computer.
+
+                    Think about a recipe for tea:
+                      1. Boil water
+                      2. Add tea leaves
+                      3. Add milk
+                    Each step is an instruction. A program is a list of
+                    instructions, but written for a computer.
+
+                    Today you learn just ONE idea:
+                    programming = writing instructions for a computer.
+                  example_code: ""
+                  exercises:
+                    - id: prog-01-ex1
+                      kind: quiz
+                      difficulty: 1
+                      question: |
+                        Programming means:
+                          A) Fixing a broken computer
+                          B) Writing instructions for a computer
+                          C) Playing games on a computer
+                      expected_behavior: "Student answers B."
+                      test_cases:
+                        - match: choice
+                          accepted: ["b"]
+                      hints:
+                        - "Read the lesson again: what do we write for the computer?"
+                        - "The lesson says: programming = writing ____ for a computer."
+                        - "The answer is the option that mentions writing instructions."
+                      passing_criteria: { min_score: 100 }
+                    - id: prog-01-ex2
+                      kind: quiz
+                      difficulty: 1
+                      question: |
+                        A recipe is a list of steps for cooking.
+                        A computer program is most like:
+                          A) A list of instructions the computer follows
+                          B) A picture on the screen
+                          C) A cable
+                      expected_behavior: "Student answers A."
+                      test_cases:
+                        - match: choice
+                          accepted: ["a"]
+                      hints:
+                        - "A recipe is a list of steps. What is a program a list of?"
+                        - "A program is a list of instructions."
+                      passing_criteria: { min_score: 100 }
+            - id: what-is-python
+              title: "What is Python?"
+              lessons:
+                - id: python-01
+                  title: "What is Python?"
+                  content: |
+                    Computers do not understand English or Hindi.
+                    So we use special languages to talk to them.
+                    These are called programming languages.
+
+                    Python is one programming language.
+                    It is popular because it is easy to read.
+                    People use Python for websites, games, data and
+                    Artificial Intelligence.
+
+                    Today you learn just ONE idea:
+                    Python is a programming language.
+                  example_code: ""
+                  exercises:
+                    - id: python-01-ex1
+                      kind: quiz
+                      difficulty: 1
+                      question: |
+                        Python is:
+                          A) A snake only
+                          B) A programming language
+                          C) A computer brand
+                      expected_behavior: "Student answers B."
+                      test_cases:
+                        - match: choice
+                          accepted: ["b"]
+                      hints:
+                        - "The lesson says: Python is one ____ language."
+                        - "Look for the option with the words programming language."
+                      passing_criteria: { min_score: 100 }
+                    - id: python-01-ex2
+                      kind: quiz
+                      difficulty: 1
+                      question: |
+                        Why do we use a programming language like Python?
+                          A) To give instructions to a computer in a way it understands
+                          B) To make the computer colourful
+                          C) To make the internet faster
+                      expected_behavior: "Student answers A."
+                      test_cases:
+                        - match: choice
+                          accepted: ["a"]
+                      hints:
+                        - "Computers do not understand English or Hindi. What do we use instead?"
+                      passing_criteria: { min_score: 100 }
+        - id: p1-m1-t2
+          title: "Running your first program"
+          concepts:
+            - id: running-python
+              title: "Running Python"
+              lessons:
+                - id: run-01
+                  title: "What does 'running' a program mean?"
+                  content: |
+                    A Python program is saved in a file that ends with .py
+                    Example: hello.py
+
+                    Running a program means telling Python:
+                    "Follow the instructions in this file."
+
+                    The text that a program shows on the screen is
+                    called output.
+
+                    (In a later lesson we will install Python together.
+                    Today we only learn the words.)
+
+                    Today you learn three words:
+                      .py file = where the program is saved
+                      run      = tell Python to follow the instructions
+                      output   = what the program shows on the screen
+                  example_code: ""
+                  exercises:
+                    - id: run-01-ex1
+                      kind: quiz
+                      difficulty: 1
+                      question: |
+                        A Python program file ends with:
+                          A) .doc
+                          B) .py
+                          C) .jpg
+                      expected_behavior: "Student answers B."
+                      test_cases:
+                        - match: choice
+                          accepted: ["b"]
+                      hints:
+                        - "The example file in the lesson was hello.something"
+                      passing_criteria: { min_score: 100 }
+                    - id: run-01-ex2
+                      kind: quiz
+                      difficulty: 1
+                      question: |
+                        The text a program shows on the screen is called:
+                          A) Output
+                          B) A cable
+                          C) A folder
+                      expected_behavior: "Student answers A."
+                      test_cases:
+                        - match: choice
+                          accepted: ["a"]
+                      hints:
+                        - "It is one of the three words from the lesson (.py, run, ____)."
+                      passing_criteria: { min_score: 100 }
+    - id: p1-m2
+      title: "Showing things on the screen"
+      topics:
+        - id: p1-m2-t1
+          title: "The print() function"
+          concepts:
+            - id: print-function
+              title: "print()"
+              lessons:
+                - id: print-01
+                  title: "Your first program: print()"
+                  content: |
+                    print() tells Python to show something on the screen.
+
+                    Example:
+
+                      print("Hello World")
+
+                    Output:
+
+                      Hello World
+
+                    Parts of the line:
+                      print          = the command (always small letters)
+                      ( )            = brackets that hold what to show
+                      "Hello World"  = the text to show, inside quotes
+
+                    The quotes are NOT shown on the screen.
+                    Python is case-sensitive: Print is wrong, print is right.
+
+                    Try it on your computer, then send your code here.
+                  example_code: 'print("Hello World")'
+                  exercises:
+                    - id: print-01-ex1
+                      kind: code
+                      difficulty: 1
+                      question: |
+                        Write a Python program that prints exactly:
+                        Hello World
+                      expected_behavior: "Prints Hello World"
+                      test_cases:
+                        - stdin: ""
+                          expected_output: "Hello World"
+                          match: exact
+                      hints:
+                        - "Use the print command: print( ... )"
+                        - "Put the text inside quotes: print(\"...\")"
+                        - "Full answer shape: print(\"Hello World\")"
+                      passing_criteria:
+                        min_score: 100
+                        required_calls: { print: 1 }
+                    - id: print-01-ex2
+                      kind: code
+                      difficulty: 1
+                      question: |
+                        Write a Python program that prints exactly:
+                        Python is fun
+                      expected_behavior: "Prints Python is fun"
+                      test_cases:
+                        - stdin: ""
+                          expected_output: "Python is fun"
+                          match: exact
+                      hints:
+                        - "Same shape as the lesson example, with different text."
+                        - "print(\"Python is fun\")"
+                      passing_criteria:
+                        min_score: 100
+                        required_calls: { print: 1 }
+            - id: printing-text
+              title: "Printing text"
+              lessons:
+                - id: print-02
+                  title: "Printing more text"
+                  content: |
+                    You can print any text you like. Just put it inside quotes.
+
+                      print("My name is Asha")
+
+                    Each print() starts on a NEW line:
+
+                      print("Hello")
+                      print("Python")
+
+                    Output:
+
+                      Hello
+                      Python
+
+                    Today you learn:
+                      - any text can go inside the quotes
+                      - every print() shows its text on its own line
+                  example_code: |
+                    print("Hello")
+                    print("Python")
+                  exercises:
+                    - id: print-02-ex1
+                      kind: code
+                      difficulty: 1
+                      question: |
+                        Print your own name.
+                        (Any name is fine - just use print().)
+                      expected_behavior: "Prints some text"
+                      test_cases:
+                        - stdin: ""
+                          match: non_empty
+                      hints:
+                        - "print(\"your name here\")"
+                      passing_criteria:
+                        min_score: 100
+                        required_calls: { print: 1 }
+                    - id: print-02-ex2
+                      kind: code
+                      difficulty: 2
+                      question: |
+                        Use TWO print() commands to show these two lines:
+                        Hello
+                        Python
+                      expected_behavior: "Prints Hello then Python on separate lines"
+                      test_cases:
+                        - stdin: ""
+                          expected_output: "Hello\nPython"
+                          match: exact
+                      hints:
+                        - "Each print() makes one line. You need two print() commands."
+                        - "First line: print(\"Hello\")  Second line: print(\"Python\")"
+                      passing_criteria:
+                        min_score: 100
+                        required_calls: { print: 2 }

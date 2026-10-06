@@ -1,0 +1,41 @@
+# --- secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# --- generated data (databases, backups) ---
+data/*.db
+data/*.db-*
+data/*.sqlite*
+data/backups/
+
+# --- n8n data (should live outside the project, but just in case) ---
+.n8n/
+.n8n-*/
+n8n-data/
+n8n_data/
+
+# --- logs / macOS / editors ---
+*.log
+logs/
+.DS_Store
+.idea/
+.vscode/
+
+# --- Google / OAuth / key material (never commit) ---
+client_secret*.json
+credentials*.json
+token*.json
+*.pem
+*.key
+n8n/*.local.json

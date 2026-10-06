@@ -1,0 +1,13 @@
+# Default mastery rules for EVERY concept. Edit the numbers - no Python change needed.
+# A single concept can override these inside the curriculum YAML:
+#     concepts:
+#       - id: print-function
+#         mastery: { passes_required: 3 }
+default:
+  # How many DIFFERENT exercises of a concept must be passed (and all of the
+  # concept's lessons completed) before the concept counts as "mastered".
+  # (If a concept has fewer exercises than this, all of its exercises are required.)
+  passes_required: 2
+  # After this many wrong submissions in a row on one concept, mark it "weak".
+  # (Later steps use this flag to give simpler examples / extra practice.)
+  weak_after_consecutive_failures: 3
