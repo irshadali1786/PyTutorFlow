@@ -247,6 +247,29 @@ Verified by hand with a real Gmail account: a student received "What is programm
 - Remove the inactive Telegram compatibility code from the Python package (kept for now because existing tests exercise it)
 - Automated tests for the n8n workflows, a CI workflow, and a lightweight admin view
 
-## License
 
-MIT, see [LICENSE](LICENSE).
+## 👨‍💻 Author
+
+Made by Irshad Ali  
+B.Tech CSE (AI & ML) | Web Dev & AI Automation Learner
+
+GitHub: https://github.com/Irshadali1786
+
+---
+
+## 📌 License
+
+MIT License
+
+---
+
+
+## 🚀 Getting Started
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/Irshadali1786/ML_Visualizer.git
+cd ML_Visualizer
+
+
